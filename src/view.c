@@ -34,6 +34,34 @@ static void put_udec(uint8_t col, uint8_t row, uint16_t v, uint8_t width,
     scr_puts(col, row, buf, attr);
 }
 
+/* Widths of the two text columns of a manual entry, set by their longest
+   entries ("Green striped" and "leave it"). */
+#define NAME_WIDTH   13
+#define ORDER_WIDTH   8
+
+/* The page currently drawn, or PAGE_NONE when something else has been drawn
+   over the manual and the next view_manual() has to lay it out again. */
+#define PAGE_NONE   0xFF
+static uint8_t drawn_page = PAGE_NONE;
+
+/* How many wire rows the drawn page filled, so a flip only has to blank the
+   rows the new page does not reach - usually none, since most pages either
+   side of a flip have the same number of wires. */
+static uint8_t drawn_wires;
+
+/* Writes s at (col,row) and blanks the rest of the field, so a shorter
+   string covers whatever was there before without a separate clearing pass. */
+static void put_field(uint8_t col, uint8_t row, const char *s, uint8_t width,
+                      uint8_t attr)
+{
+    uint8_t len = str_len(s);
+    scr_puts(col, row, s, attr);
+    if (len < width) {
+        scr_fill((uint8_t)(col + len), row, (uint8_t)(width - len), G_BLANK,
+                 attr);
+    }
+}
+
 /* Wire colour helpers. colour is 0..5: odd = striped, colour>>1 picks the
    base hue (0 red, 1 blue, 2 green). */
 static uint8_t wire_bg(uint8_t colour)
@@ -102,6 +130,7 @@ void view_frame(void)
     for (r = ROW_MANUAL0; r <= ROW_MANUAL1; r++) {
         scr_fill(0, r, 40, G_BLANK, FG_BLACK | BG_WHITE);
     }
+    drawn_page = PAGE_NONE;
 }
 
 /* ------------------------------------------------------------------- */
@@ -206,40 +235,58 @@ void view_manual(uint8_t page)
         "leave it", "cut 1st", "cut 2nd", "cut 3rd", "cut 4th", "cut 5th"
     };
     uint8_t attr = FG_BLACK | BG_WHITE;
-    uint8_t row, i, n;
+    uint8_t row, i, n, full;
     const Bomb *b;
-    char nb[2];
+    char nb[8];
 
-    /* Clear the whole body of the page: not just what a previous page left
-       behind, but also the title screen's banner, which sits in here. */
-    for (row = 18; row <= 30; row++) scr_fill(0, row, 40, G_BLANK, attr);
+    /* Paging is the thing the player does most, so redraw as little as
+       possible: only the page number and the wire list actually change.
+       Everything else -- the heading, the "/48", the rule, the key hints --
+       is repainted only when the page has been overwritten by something
+       else, or when the cover is involved, since that has its own layout. */
+    full = (uint8_t)(drawn_page == PAGE_NONE || drawn_page == 0 || page == 0);
 
-    if (page == 0) {
-        view_message(22, "BOMB DEFUSAL MANUAL", attr);
-        return;
+    if (full) {
+        for (row = 18; row <= 30; row++) scr_fill(0, row, 40, G_BLANK, attr);
+
+        if (page == 0) {
+            view_message(22, "BOMB DEFUSAL MANUAL", attr);
+            drawn_page = 0;
+            return;
+        }
+
+        scr_puts(2, 18, "BOMB DEFUSAL MANUAL", attr);
+        scr_puts(35, 18, "/48", attr);
+        scr_fill(2, 19, 36, G_RULE, attr);
+        scr_puts(2, 30, "\x06\x07 page  \x08\x09 wire   SPACE cut", attr);
     }
 
-    scr_puts(2, 18, "BOMB DEFUSAL MANUAL", attr);
     put_udec(33, 18, page, 2, attr);
-    scr_puts(35, 18, "/48", attr);
-
-    scr_fill(2, 19, 36, G_RULE, attr);
 
     b = &bombs[page - 1];
     n = b->num_wires;
     nb[0] = (char)('0' + n);
     nb[1] = 0;
     scr_puts(2, 20, nb, attr);
-    scr_puts(3, 20, " wires", attr);
+    if (full) scr_puts(3, 20, " wires", attr);
 
+    /* Fixed width fields, so a shorter entry covers the longer one the
+       previous page left in its place and no clearing pass is needed. */
     for (i = 0; i < n; i++) {
         row = (uint8_t)(22 + i);
         scr_fill(2, row, 2, wire_glyph(b->colour[i]), wire_attr(b->colour[i]));
-        scr_puts(5, row, colour_name[b->colour[i]], attr);
-        scr_puts(22, row, order_text[b->order[i]], attr);
+        put_field(5, row, colour_name[b->colour[i]], NAME_WIDTH, attr);
+        put_field(22, row, order_text[b->order[i]], ORDER_WIDTH, attr);
+    }
+    /* A full draw cleared the page, so only a partial one has leftovers. */
+    if (!full) {
+        for (; i < drawn_wires; i++) {
+            scr_fill(2, (uint8_t)(22 + i), 28, G_BLANK, attr);
+        }
     }
 
-    scr_puts(2, 30, "\x06\x07 page  \x08\x09 wire   SPACE cut", attr);
+    drawn_page = page;
+    drawn_wires = n;
 }
 
 void view_prompt(const char *s)
@@ -271,6 +318,7 @@ void view_title(void)
 
     for (row = ROW_MANUAL0; row <= ROW_MANUAL1; row++)
         scr_fill(0, row, 40, G_BLANK, attr);
+    drawn_page = PAGE_NONE;
 
     /* The banner in reverse video, the way the original had it. */
     scr_fill(13, 20, 14, G_BLANK, FG_WHITE | BG_BLACK);

@@ -427,12 +427,14 @@ _scr_fill_callee:
                 ret     z
 
                 call    bank_pixel
+                ld      a,(cur_char)    ; one character, so one bitmap lookup
+                call    char_bitmap
+                ld      (cur_src),de
                 ld      a,(cur_len)
                 ld      b,a
 fill_pixels:
                 push    bc
-                ld      a,(cur_char)
-                call    char_bitmap
+                ld      de,(cur_src)
                 call    pix_addr
                 call    put_cell
                 ld      hl,cur_col

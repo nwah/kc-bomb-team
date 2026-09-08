@@ -30,6 +30,9 @@ static GameState G;
    defused. Read by play_bomb()'s loop and by game_run(). */
 static uint8_t round_over;
 
+/* clk_ticks() as tick() last saw it, so the fuse can be burnt in real time. */
+static uint8_t last_clk;
+
 static void boom(void);
 static void defuse(void);
 static void tick(void);
@@ -64,29 +67,52 @@ static void reset_timer(void)
         if (t < 15) t = 15;
         G.ticks_left = (uint8_t)t;
     }
-    G.tick_timer = 1;   /* so the first tick fires immediately */
+    G.tick_timer = 0;   /* so the first tick fires immediately */
+    last_clk = clk_ticks();
 }
 
 static void tick(void)
 {
-    uint8_t i;
+    uint8_t now, elapsed, i;
 
-    G.tick_timer--;
-    if (G.tick_timer == 0) {
-        view_light(LIGHT_RED);
-        snd_tone(TICK_PITCH, 12);
-        view_wait(5);
-        snd_off();
-        view_light(LIGHT_OFF);
+    /*
+     * The fuse burns in real time, not in passes round the game loop. A pass
+     * that redraws a page of the manual takes many times longer than an idle
+     * one, so counting passes let a player who flips pages a lot slow the
+     * countdown down; measuring the clock instead makes the fuse the same
+     * length however busy the loop is.
+     */
+    now = clk_ticks();
+    elapsed = (uint8_t)(last_clk - now);   /* the CTC counts down */
+    last_clk = now;
 
-        G.ticks_left--;
-
-        /* beeps start about 2.4s apart and close up to 0.3s */
-        G.tick_timer = 15;
-        for (i = 11; i <= G.ticks_left; i += 5) {
-            G.tick_timer = (uint16_t)(G.tick_timer + G.tick_timer);
-        }
+    if (G.tick_timer > elapsed) {
+        G.tick_timer = (uint16_t)(G.tick_timer - elapsed);
+        return;
     }
+    elapsed = (uint8_t)(elapsed - G.tick_timer);   /* how far we overran */
+
+    view_light(LIGHT_RED);
+    snd_tone(TICK_PITCH, 12);
+    view_wait(5);
+    snd_off();
+    view_light(LIGHT_OFF);
+
+    G.ticks_left--;
+
+    /* The base sets the whole tempo; the doublings below scale off it, and
+       the fuse comes to base * 81 fiftieths in total. 13 keeps it at the
+       21 seconds the pass-counting version happened to run to. */
+    G.tick_timer = 13;
+    for (i = 11; i <= G.ticks_left; i += 5) {
+        G.tick_timer = (uint16_t)(G.tick_timer + G.tick_timer);
+    }
+    /* Carry the overrun into the next interval rather than losing it, so a
+       slow pass cannot buy the player extra time. The beep above is charged
+       the same way: it lands in the next pass's elapsed. */
+    G.tick_timer = (uint16_t)(G.tick_timer > elapsed ? G.tick_timer - elapsed
+                                                     : 1);
+
     if (G.ticks_left == 0) boom();
 }
 
