@@ -670,6 +670,11 @@ void view_logo_light(uint8_t on)
    the foot of the screen instead, so the menu has the whole middle of
    the left-hand side to itself. */
 #define MENU_ROW(i) (21 + 2 * (i))
+
+/* The items are ranged left rather than centred, so their first letters
+   line up under one another and the eye has a single edge to run down.
+   MENU_COL leaves the arrow room to sit clear of them. */
+#define MENU_COL    8
 #define CREDIT_ROW  29
 
 void view_title_menu(uint8_t selected)
@@ -691,9 +696,9 @@ void view_title_menu(uint8_t selected)
         attr = FG_WHITE | BG_BLACK;
         if (i == selected) {
             attr = FG_YELLOW | BG_BLACK;
-            scr_glyph((uint8_t)(BOOK_COL0 + 5, row, &udg_font[G_RIGHT * 8], attr);
+            scr_glyph(MENU_COL - 3, row, &udg_font[G_RIGHT * 8], attr);
         }
-        book_centre(row, s, attr);
+        scr_puts(MENU_COL, row, s, attr);
     }
 }
 
@@ -791,9 +796,10 @@ void view_continue(void)
 
 void view_exit(void)
 {
-    /* CAOS writes its own prompt over whatever is already on screen when
-       control returns to it, so a clean CAOS-coloured screen is what stops
-       the game's graphics showing through underneath that prompt. */
+    /* Cleared through CAOS rather than with scr_cls(), which would leave the
+       screen right but CAOS's cursor wherever the game found it: the prompt
+       came back indented, and CAOS -- which reads a command line back off
+       the screen -- refused the first command typed at it. */
     snd_off();
-    scr_cls(FG_WHITE | BG_BLUE);
+    scr_caos_cls();
 }

@@ -19,6 +19,9 @@ extern uint8_t kc85_4;
 extern const uint8_t udg_font[];
 
 extern void scr_setup(void);
+/* Clears the screen through CAOS, which sends CAOS's cursor home with it --
+   the way to leave the screen when handing control back. */
+extern void scr_caos_cls(void);
 extern void scr_cls(uint8_t attr) __z88dk_fastcall;
 /*
  * The callee-cleanup entry points are named the way z88dk names its own, and

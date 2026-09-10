@@ -49,6 +49,7 @@ defc    IRM_COLOUR_23_LEN = $0A00
                 PUBLIC  _clk_ticks
                 PUBLIC  _snd_tone_callee
                 PUBLIC  _snd_off
+                PUBLIC  _scr_caos_cls
                 PUBLIC  _kc85_4
 
                 EXTERN  _font_8x8_zx_system
@@ -119,6 +120,28 @@ setup_sound:
                 out     (CTC2),a
                 xor     a               ; time constant 0 means 256
                 out     (CTC2),a
+                ret
+
+; ---------------------------------------------------------------------------
+; void scr_caos_cls(void)
+;
+; Clears the screen by sending CAOS the control code its own start-up sends,
+; rather than by writing the IRM.
+;
+; The game draws straight to the IRM and never tells CAOS anything about it,
+; so on the way back out CAOS's cursor is still sitting wherever it was when
+; the game started.  That is what left the prompt indented, and what had the
+; first command typed at it refused: CAOS reads a command line back off the
+; screen, and read the indent along with it.  Clearing through CAOS sends the
+; cursor home with the screen.
+; ---------------------------------------------------------------------------
+_scr_caos_cls:
+                push    iy              ; ix, after the assembler's swap
+                ld      iy,$01F0        ; CAOS wants its own base register
+                ld      a,$0C
+                call    PV1
+                defb    FNCRT
+                pop     iy
                 ret
 
 ; ---------------------------------------------------------------------------
