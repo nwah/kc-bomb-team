@@ -5,7 +5,7 @@ the Atari 8-bit as an entry in the NOMAM BASIC 10Liner contest.  One binary runs
 on both the KC 85/3 and the KC 85/4; the machine is detected at startup.
 
 Beep... beep... beep.  Consult the Bomb Defusal Manual, find the page that
-matches the bomb at the top of the screen, and cut its wires in the right
+matches the bomb on the right of the screen, and cut its wires in the right
 order before the countdown runs out.
 
 ## Controls

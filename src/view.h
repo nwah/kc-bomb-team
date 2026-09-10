@@ -10,31 +10,53 @@
  * this module never knows a game rule (score, cut order, timers).
  */
 
-/* Rows. */
+/* Rows. Row 0 is the status bar and row 1 stays black, a margin between it
+   and the panels below. Rows 2..29 hold the book, on the left, and the
+   bomb, on the right, separated by a black column 23; row 29 is their
+   shared depth/blank row below the casing. */
 #define ROW_STATUS      0
-#define ROW_FRAME_TOP   1
-#define ROW_INTERIOR0   2
-#define ROW_INTERIOR1   14
-#define ROW_FRAME_BOT   15
-#define ROW_GAP         16
-#define ROW_MANUAL0     17
-#define ROW_MANUAL1     31
+#define ROW_PROMPT      31
 
-/* Wire i sits at row 3 + 2*i, columns 2..29. */
-#define WIRE_ROW(i)     (3 + 2 * (i))
-#define WIRE_COL0       2
-#define WIRE_COL_LEN    28
-#define SCISSORS_COL    15
+/* The bomb: a bundle of dynamite in columns 26..37 with a black box
+   strapped across it, outlined in columns 24..39 (see bomb_dynamite() and
+   bomb_box() in view.c for how they are drawn). Wire i sits on row 12 +
+   2*i, in the wire well that runs columns 27..36 and is exactly as tall as
+   the wires themselves. */
+#define WIRE_ROW(i)     (12 + 2 * (i))
+#define WIRE_COL0       27
+#define WIRE_COL_LEN    10
+#define SCISSORS_COL    31
 /* A cut takes the three columns the scissors sit in the middle of: the
    frayed ends either side and the gap itself. */
 #define CUT_COL_L       (SCISSORS_COL - 1)
 #define CUT_COL_R       (SCISSORS_COL + 1)
 
-/* The countdown light: a 3x2 block at columns 33..35, rows 3..4. */
-#define LIGHT_COL       33
-#define LIGHT_ROW       3
-#define LIGHT_W         3
-#define LIGHT_H         2
+/* Two lamps, a cell each, stacked down the margin beside the readout's
+   panel: the countdown's red one and the safe green one below it. Neither
+   is ringed, so an unlit lamp is black on black and the box simply shows
+   nothing there. */
+#define LIGHT_COL       25
+#define LIGHT_ROW       7
+#define SAFE_ROW        8
+
+/* The countdown readout: a four-cell field in its own outlined panel below
+   the lamps and above the wire compartment -- wide enough for the word the
+   bomb ends on, with the two digits centred in it while it is still
+   counting. bomb_box() draws the panel around it. */
+#define TIMER_COL       27
+#define TIMER_W         4
+#define TIMER_ROW       9
+
+/* The book: columns 0..21, rows BOOK_ROW0..BOOK_ROW1 hold the cover (page
+   0) or a manual page (1..48). It sits low enough that its foot is behind
+   the instruction bar and off the bottom of the screen, so only the
+   fore-edge down its right-hand side is ever drawn -- see book_edges().
+   Entry i of a page sits on ENTRY_ROW(i). */
+#define BOOK_COL0       0
+#define BOOK_W          22
+#define BOOK_ROW0       4
+#define BOOK_ROW1       30
+#define ENTRY_ROW(i)    (14 + 2 * (i))
 
 #define LIGHT_OFF       0
 #define LIGHT_RED       1
@@ -60,8 +82,13 @@ extern void view_wait(uint8_t ticks);
 /* One-time setup: clears the screen. Call after scr_setup(). */
 extern void view_init(void);
 
-/* Title screen: sample bomb and banner text. Does not wait for input. */
+/* Title screen: sample bomb and the BOMB TEAM logo. Does not wait for
+   input; the caller drives view_logo_light() while it waits. */
 extern void view_title(void);
+
+/* The red light inside the logo's O, on or off. The title screen's own
+   wait loop blinks it, the way the bomb's lamp blinks on a tick. */
+extern void view_logo_light(uint8_t on);
 
 /* Draws the bomb casing frame and the manual/status page backgrounds. Does
    not draw wires, the light, or manual text -- callers draw those next. */
@@ -92,11 +119,22 @@ extern void view_light(uint8_t state);
 /* Status bar: score and defused count. */
 extern void view_status(uint16_t score, uint8_t defused);
 
+/* Countdown readout: the number of ticks the fuse has left, not seconds --
+   the interval between ticks halves as the fuse burns down, so ticks are
+   what the player can actually count against the beeps. */
+extern void view_timer(uint8_t ticks);
+
+/* Slides the book up into place from the bottom of the screen, wiping away
+   whatever the title screen left behind it. Leaves the panel filled but
+   blank; the caller's next view_manual() lays the page out on top. */
+extern void view_book_rise(void);
+
 /* Renders manual page `page` (0 = cover, 1..48 = bombs[page-1]). */
 extern void view_manual(uint8_t page);
 
-/* Centres `s` on the manual page's bottom line, which view_manual() leaves
-   alone; pass a null pointer to clear it again. */
+/* Puts `s` on the blue bar along the bottom of the screen; pass a null
+   pointer to put the key legend back, which is what that bar carries
+   whenever there is nothing else to say. */
 extern void view_prompt(const char *s);
 
 /* Draws `s` horizontally centred on `row` in the given attribute. */
@@ -106,7 +144,9 @@ extern void view_message(uint8_t row, const char *s, uint8_t attr);
    then BOOM! and the final score. Does not wait for input. */
 extern void view_boom(uint16_t score);
 
-/* Defuse flourish: flashes the light green three times with a beep. */
+/* Defuse flourish: flashes the green lamp three times with a beep, then
+   leaves it lit and the readout reading SAFE. Both stay that way until the
+   next bomb's reset_timer() puts the countdown back. */
 extern void view_defused(void);
 
 #endif /* VIEW_H */

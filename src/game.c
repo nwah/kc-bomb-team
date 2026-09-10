@@ -47,11 +47,39 @@ static void wait_key(void)
     while (key_get() == 0) view_wait(1);
 }
 
+/* The same, for the title screen, which has a light of its own to keep
+   blinking while it waits -- half a second on, half a second off, slow
+   enough to read as a pulse rather than a flicker. */
+static void wait_key_title(void)
+{
+    uint8_t on = 0, t = 0;
+
+    while (key_get() == 0) {
+        view_wait(1);
+        if (++t >= 25) {
+            t = 0;
+            on = (uint8_t)!on;
+            view_logo_light(on);
+        }
+    }
+}
+
 /* ------------------------------------------------------------------- */
 
 static void pick_bomb(void)
 {
-    G.bomb_num = (uint8_t)(G.min_bomb + (rand() % 8));
+    uint8_t prev = G.bomb_num;
+    uint8_t n;
+
+    /* The same bomb twice running reads as the game not having moved on, so
+       keep drawing until it comes up different. The pool is eight wide, so
+       this rarely goes round even once, and it can never spin: there are
+       always seven other bombs to land on. */
+    do {
+        n = (uint8_t)(G.min_bomb + (rand() % 8));
+    } while (n == prev);
+
+    G.bomb_num = n;
     G.cut = 0;
     G.to_cut = (uint8_t)(bombs[G.bomb_num].num_wires - 1);
     G.selected = 0;
@@ -69,6 +97,8 @@ static void reset_timer(void)
     }
     G.tick_timer = 0;   /* so the first tick fires immediately */
     last_clk = clk_ticks();
+    view_timer(G.ticks_left);
+    view_light(LIGHT_OFF);   /* the last bomb left the safe lamp lit */
 }
 
 static void tick(void)
@@ -99,6 +129,7 @@ static void tick(void)
     view_light(LIGHT_OFF);
 
     G.ticks_left--;
+    view_timer(G.ticks_left);
 
     /* The base sets the whole tempo; the doublings below scale off it, and
        the fuse comes to base * 81 fiftieths in total. 13 keeps it at the
@@ -165,6 +196,9 @@ static void play_bomb(void)
     uint8_t k, old;
     const Bomb *b;
 
+    /* The prompt line is the one thing on screen the manual does not cover,
+       so the title's "PRESS SPACE TO START" has to be taken down here. */
+    view_prompt(0);
     view_manual(G.page);
     pick_bomb();
     b = &bombs[G.bomb_num];
@@ -226,7 +260,7 @@ void game_run(void)
     view_init();
     for (;;) {
         view_title();
-        wait_key();
+        wait_key_title();
         if (!seeded) {
             srand(clk_ticks());
             seeded = 1;
@@ -235,16 +269,20 @@ void game_run(void)
         G.score = 0;
         G.defused = 0;
         G.min_bomb = 0;
-        /* G.page is kept across bombs and games -- never reset here. */
+        view_book_rise();   /* the book slides up over the title's logo */
+        /* G.page is kept from bomb to bomb, so the player does not lose
+           their place; only an explosion closes the manual again. */
 
         for (;;) {
             play_bomb();
             if (round_over == 1) {        /* exploded: back to the title */
                 wait_key();
+                G.page = 0;               /* the next game starts closed */
                 break;
             }
-            /* The green flashes say it is defused; say how to go on. */
-            view_prompt("DEFUSED - PRESS SPACE FOR THE NEXT");
+            /* The green lamp and the readout are already saying it is
+               defused, so the bar only has to say how to go on. */
+            view_prompt("Press any key to continue");
             wait_key();
             view_prompt(0);
         }
