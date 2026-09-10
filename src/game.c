@@ -47,19 +47,42 @@ static void wait_key(void)
     while (key_get() == 0) view_wait(1);
 }
 
-/* The same, for the title screen, which has a light of its own to keep
-   blinking while it waits -- half a second on, half a second off, slow
-   enough to read as a pulse rather than a flicker. */
-static void wait_key_title(void)
+/* Runs the title screen's menu, keeping the logo lamp pulsing exactly as
+   the old wait did -- half a second on, half a second off -- while it
+   waits for the player to move the selection or choose it. Returns the
+   chosen MENU_* item. */
+static uint8_t title_menu(void)
 {
-    uint8_t on = 0, t = 0;
+    uint8_t sel = MENU_START;
+    uint8_t on = 0, t = 0, k;
 
-    while (key_get() == 0) {
-        view_wait(1);
-        if (++t >= 25) {
-            t = 0;
-            on = (uint8_t)!on;
-            view_logo_light(on);
+    for (;;) {
+        while ((k = key_get()) == 0) {
+            view_wait(1);
+            if (++t >= 25) {
+                t = 0;
+                on ^= 1;
+                view_logo_light(on);
+            }
+        }
+
+        switch (k) {
+            case 0x0B: case 'w': case 'W':
+                /* sel is unsigned, so decrementing past 0 wraps to 0xFF
+                   rather than -1, which is what this is actually testing
+                   for. */
+                sel--;
+                if (sel > MENU_ITEMS) sel = MENU_ITEMS - 1;
+                view_title_menu(sel);
+                break;
+
+            case 0x0A: case 's': case 'S':
+                if (++sel >= MENU_ITEMS) sel = 0;
+                view_title_menu(sel);
+                break;
+
+            case ' ': case 0x0D:
+                return sel;
         }
     }
 }
@@ -260,7 +283,24 @@ void game_run(void)
     view_init();
     for (;;) {
         view_title();
-        wait_key_title();
+        switch (title_menu()) {
+            /* The title stays up: the loop draws it again, in the other
+               language this time. */
+            case MENU_LANG:
+                view_lang_toggle();
+                continue;
+
+            /* exit() puts back the CAOS interrupt vectors the crt hooked
+               at startup and leaves through FNLOOP, which returns control
+               to CAOS without initialising memory -- so the game is still
+               in the menu, ready to be started again. */
+            case MENU_EXIT:
+                view_exit();
+                exit(0);
+
+            default:            /* MENU_START: on with the game */
+                break;
+        }
         if (!seeded) {
             srand(clk_ticks());
             seeded = 1;
@@ -282,7 +322,7 @@ void game_run(void)
             }
             /* The green lamp and the readout are already saying it is
                defused, so the bar only has to say how to go on. */
-            view_prompt("Press any key to continue");
+            view_continue();
             wait_key();
             view_prompt(0);
         }

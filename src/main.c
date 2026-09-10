@@ -3,6 +3,13 @@
 #include "game.h"
 
 /*
+ * Where the whole thing loads, and where the CAOS menu word in hw.asm jumps
+ * to when the game is started from the menu. Named here rather than left to
+ * the crt's default so that the two cannot drift apart.
+ */
+#pragma output CRT_ORG_CODE = 0x1000
+
+/*
  * Non-blocking read of the CAOS keyboard buffer; 0 when nothing is
  * waiting. CAOS wants its own base register in iy, which the assembler
  * turns into ix because zcc compiles with -mz80_ixiy.

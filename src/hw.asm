@@ -22,6 +22,7 @@
 ;
 
                 INCLUDE "target/kc/def/caos.def"
+                INCLUDE "zcc_opt.def"           ; for CRT_ORG_CODE
 
 ; CAOS keeps shadow copies of the write-only ports in the block at $01F0.
 defc    SHADOW_84 = $01F1       ; KC85/4 only: pixel/colour bank select
@@ -52,6 +53,27 @@ defc    IRM_COLOUR_23_LEN = $0A00
 
                 EXTERN  _font_8x8_zx_system
                 EXTERN  _udg_font
+
+; ---------------------------------------------------------------------------
+; CAOS menu word
+;
+; CAOS builds its menu by scanning memory for the pattern $7F $7F followed by
+; a name and a $01 terminator, and calls the byte after the terminator when
+; that name is chosen.  A RESET clears the system area at $0000-$01FF and the
+; screen but leaves the rest of the RAM alone, so a word anywhere in the
+; loaded image keeps the game in the menu afterwards: it can be started again
+; without being read back off tape.
+;
+; The word points at the crt entry rather than at main(), so a restart from
+; the menu zeroes the BSS, resets the stack and re-saves the CAOS interrupt
+; vectors exactly as a fresh load does.  Only statics with an initialiser
+; survive, and view_init() puts those back itself.
+; ---------------------------------------------------------------------------
+menu_word:
+                defb    $7F,$7F
+                defm    "BOMB"
+                defb    $01
+                jp      CRT_ORG_CODE
 
 ; ---------------------------------------------------------------------------
 ; void scr_setup(void)

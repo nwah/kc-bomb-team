@@ -82,9 +82,38 @@ extern void view_wait(uint8_t ticks);
 /* One-time setup: clears the screen. Call after scr_setup(). */
 extern void view_init(void);
 
+/* Title screen menu: three items drawn one to a row below the credit
+   line. MENU_ITEMS sizes the language table's own menu[] array, and
+   title_menu() in game.c uses the others to track and move the
+   selection. */
+#define MENU_START  0
+#define MENU_LANG   1
+#define MENU_EXIT   2
+#define MENU_ITEMS  3
+
 /* Title screen: sample bomb and the BOMB TEAM logo. Does not wait for
    input; the caller drives view_logo_light() while it waits. */
 extern void view_title(void);
+
+/* Draws the title screen's menu: `selected` is picked out in yellow with
+   an arrow to its left, the other two items in plain white. Called again
+   on every move so the highlight follows the player. */
+extern void view_title_menu(uint8_t selected);
+
+/* Swaps the whole UI to the other language. L is a DATA static rather
+   than something view_init() resets, so a language picked before a
+   machine RESET is still in force when the CAOS menu restarts the game. */
+extern void view_lang_toggle(void);
+
+/* Puts the "press any key to continue" prompt on the bar. game.c calls
+   this rather than holding the string itself -- every player-visible
+   string lives in view.c's language table. */
+extern void view_continue(void);
+
+/* Leaves the machine the way CAOS expects it back: silences the speaker
+   and clears the screen to the CAOS colours, since CAOS writes its own
+   prompt over whatever is already there. */
+extern void view_exit(void);
 
 /* The red light inside the logo's O, on or off. The title screen's own
    wait loop blinks it, the way the bomb's lamp blinks on a tick. */

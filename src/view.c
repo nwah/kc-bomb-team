@@ -10,6 +10,75 @@
  */
 
 /* ------------------------------------------------------------------- */
+/* Language table.                                                     */
+/* ------------------------------------------------------------------- */
+
+/* Every string the player can read, one struct per language, so
+   view_lang_toggle() swaps the entire UI with a single pointer flip
+   instead of an if/else at every place text is drawn. */
+typedef struct {
+    const char *score;
+    const char *defused;
+    const char *safe;
+    const char *manual;
+    const char *cover[3];
+    const char *pages;
+    const char *col_order;
+    const char *col_wire;
+    const char *wires;
+    const char *colour[6];
+    const char *order[6];
+    const char *legend;
+    const char *title_keys;
+    const char *cont;
+    const char *boom;
+    const char *final;
+    const char *press;
+    const char *menu[MENU_ITEMS];
+} Lang;
+
+static const Lang lang_en = {
+    "SCORE ", "DEFUSED ", "SAFE", "BOMB DEFUSAL MANUAL",
+    { "BOMB", "DEFUSAL", "MANUAL" }, "48 PAGES",
+    "CUT", "WIRE", " wires",
+    { "Red", "Red striped", "Blue", "Blue striped", "Green", "Green striped" },
+    { "no", "1st", "2nd", "3rd", "4th", "5th" },
+    "\x06\x07 page   \x08\x09 wire   SPACE cut",
+    "\x08\x09 choose   SPACE select",
+    "Press any key to continue",
+    "BOOM!", "FINAL SCORE ", "PRESS SPACE",
+    { "START", "DEUTSCH", "EXIT" }
+};
+
+/* German has no umlauts here on purpose: text is drawn with the 8x8 ZX
+   system font, which has no ae/oe/ue as single glyphs, so the ae/oe/ue
+   digraphs stand in for them instead. */
+static const Lang lang_de = {
+    "PUNKTE ", "GESCHAFFT ", "FREI", "BOMBEN-HANDBUCH",
+    { "DAS", "BOMBEN", "HANDBUCH" }, "48 SEITEN",
+    "NR.", "DRAHT", " Draehte",
+    { "Rot", "Rot gestr.", "Blau", "Blau gestr.", "Gruen", "Gruen gestr." },
+    { "nie", "1.", "2.", "3.", "4.", "5." },
+    "\x06\x07 Seite  \x08\x09 Draht  LEER schneiden",
+    "\x08\x09 Auswahl   LEER waehlen",
+    "Weiter mit beliebiger Taste",
+    "BUMM!", "PUNKTE GESAMT ", "LEERTASTE",
+    { "START", "ENGLISH", "ENDE" }
+};
+
+/* The language in force. A DATA static, deliberately NOT reset by
+   view_init(): a restart from the CAOS menu re-enters through the crt,
+   which zeroes the BSS but leaves an initialised static as it was left,
+   so a language chosen before a machine RESET is still in force when the
+   game is restarted from the CAOS menu. */
+static const Lang *L = &lang_en;
+
+void view_lang_toggle(void)
+{
+    L = (L == &lang_en) ? &lang_de : &lang_en;
+}
+
+/* ------------------------------------------------------------------- */
 /* Small local helpers.                                                */
 /* ------------------------------------------------------------------- */
 
@@ -129,6 +198,12 @@ void view_wait(uint8_t ticks)
 
 void view_init(void)
 {
+    /* A restart from the CAOS menu re-enters through the crt, which zeroes
+       the BSS but leaves statics that have an initialiser holding whatever
+       the last game left in them, so put those back by hand. */
+    drawn_page = PAGE_NONE;
+    drawn_wires = 0;
+
     scr_cls(FG_BLACK | BG_BLACK);
 }
 
@@ -343,11 +418,18 @@ void view_light(uint8_t state)
 
 void view_status(uint16_t score, uint8_t defused)
 {
+    /* The score sits flush left, the defused count flush right against
+       column 40. The label moves left with its own length so a longer
+       word still leaves the 2-digit field the room it needs, but that
+       field's own column is a constant 38: label col + label len is
+       40 - 2 whatever the label's length, since that is exactly what
+       "right-aligned against 40" means. */
     uint8_t attr = FG_WHITE | BG_BLUE;
 
-    scr_puts(0, ROW_STATUS, "SCORE ", attr);
-    put_udec(6, ROW_STATUS, score, 6, attr);
-    scr_puts(30, ROW_STATUS, "DEFUSED ", attr);
+    scr_puts(0, ROW_STATUS, L->score, attr);
+    put_udec(str_len(L->score), ROW_STATUS, score, 6, attr);
+
+    scr_puts((uint8_t)(38 - str_len(L->defused)), ROW_STATUS, L->defused, attr);
     put_udec(38, ROW_STATUS, defused, 2, attr);
 }
 
@@ -389,12 +471,6 @@ void view_book_rise(void)
 
 void view_manual(uint8_t page)
 {
-    static const char *colour_name[6] = {
-        "Red", "Red striped", "Blue", "Blue striped", "Green", "Green striped"
-    };
-    static const char *order_text[6] = {
-        "no", "1st", "2nd", "3rd", "4th", "5th"
-    };
     uint8_t attr = FG_BLACK | BG_WHITE;
     uint8_t row, i, n, full;
     const Bomb *b;
@@ -414,11 +490,11 @@ void view_manual(uint8_t page)
             book_paint(cover);
             book_edges();
             scr_fill(2, 12, 18, G_RULE, cover);
-            book_centre(15, "BOMB", cover);
-            book_centre(17, "DEFUSAL", cover);
-            book_centre(19, "MANUAL", cover);
+            book_centre(15, L->cover[0], cover);
+            book_centre(17, L->cover[1], cover);
+            book_centre(19, L->cover[2], cover);
             scr_fill(2, 22, 18, G_RULE, cover);
-            book_centre(25, "48 PAGES", cover);
+            book_centre(25, L->pages, cover);
             drawn_page = 0;
             return;
         }
@@ -426,10 +502,10 @@ void view_manual(uint8_t page)
         book_paint(attr);
         book_edges();
         scr_puts(18, 5, "/48", attr);
-        scr_puts(1, 7, "BOMB DEFUSAL MANUAL", attr);
+        scr_puts(1, 7, L->manual, attr);
         scr_fill(1, 8, 20, G_RULE, attr);
-        scr_puts(1, 12, "CUT", attr);
-        scr_puts(8, 12, "WIRE", attr);
+        scr_puts(1, 12, L->col_order, attr);
+        scr_puts(8, 12, L->col_wire, attr);
         scr_fill(1, 13, 20, G_RULE, attr);
     }
 
@@ -443,15 +519,17 @@ void view_manual(uint8_t page)
     nb[0] = (char)('0' + n);
     nb[1] = 0;
     scr_puts(1, 10, nb, attr);
-    if (full) scr_puts(2, 10, " wires", attr);
+    if (full) scr_puts(2, 10, L->wires, attr);
 
     /* Fixed width fields, so a shorter entry covers the longer one the
        previous page left in its place and no clearing pass is needed. */
     for (i = 0; i < n; i++) {
+        uint8_t c = b->colour[i];
+
         row = ENTRY_ROW(i);
-        put_field(1, row, order_text[b->order[i]], ORDER_WIDTH, attr);
-        scr_fill(5, row, 2, wire_glyph(b->colour[i]), wire_attr(b->colour[i]));
-        put_field(8, row, colour_name[b->colour[i]], NAME_WIDTH, attr);
+        put_field(1, row, L->order[b->order[i]], ORDER_WIDTH, attr);
+        scr_fill(5, row, 2, wire_glyph(c), wire_attr(c));
+        put_field(8, row, L->colour[c], NAME_WIDTH, attr);
     }
     /* A full draw cleared the page, so only a partial one has leftovers. */
     if (!full) {
@@ -469,11 +547,10 @@ void view_prompt(const char *s)
     /* The bar is never blank: with nothing else to say it carries the keys,
        so the one line does the work the title screen and the legend used to
        need a row each for. */
-    static const char legend[] = "\x06\x07 page   \x08\x09 wire   SPACE cut";
     uint8_t attr = FG_WHITE | BG_BLUE;
 
     scr_fill(0, ROW_PROMPT, 40, G_BLANK, attr);
-    view_message(ROW_PROMPT, s ? s : legend, attr);
+    view_message(ROW_PROMPT, s ? s : L->legend, attr);
 }
 
 void view_message(uint8_t row, const char *s, uint8_t attr)
@@ -587,6 +664,39 @@ void view_logo_light(uint8_t on)
     scr_glyph(c1, r1, &logo_lamp[24], attr);
 }
 
+/* Row for menu item i: under the logo, inside the book's columns
+   (BOOK_COL0..BOOK_W), which are black on the title screen and are wiped
+   by view_book_rise() the moment a game starts. The credit line sits at
+   the foot of the screen instead, so the menu has the whole middle of
+   the left-hand side to itself. */
+#define MENU_ROW(i) (21 + 2 * (i))
+#define CREDIT_ROW  29
+
+void view_title_menu(uint8_t selected)
+{
+    /* Counted down rather than up: each row stands on its own (blanked
+       and redrawn independently), so the direction cannot be seen on
+       screen, and the compare-against-zero this way round is cheaper. */
+    uint8_t i = MENU_ITEMS, row, attr;
+    const char *s;
+
+    while (i-- > 0) {
+        row = MENU_ROW(i);
+        s = L->menu[i];
+
+        /* Blanked first, so a shorter item -- ENGLISH for DEUTSCH, say --
+           covers a longer one left there by the other language. */
+        scr_fill(BOOK_COL0, row, BOOK_W, G_BLANK, FG_WHITE | BG_BLACK);
+
+        attr = FG_WHITE | BG_BLACK;
+        if (i == selected) {
+            attr = FG_YELLOW | BG_BLACK;
+            scr_glyph((uint8_t)(BOOK_COL0 + 5, row, &udg_font[G_RIGHT * 8], attr);
+        }
+        book_centre(row, s, attr);
+    }
+}
+
 void view_title(void)
 {
     /* The left-hand side carries the logo instead of the book: view_frame()
@@ -601,11 +711,14 @@ void view_title(void)
     logo_draw();
     view_logo_light(0);
 
-    book_centre(22, "Noah Burney", attr);
-    book_centre(24, "2026", attr);
+    /* Name and year on one line immediately above the instruction bar,
+       where a book's colophon goes: the middle of the page belongs to the
+       menu. */
+    book_centre(CREDIT_ROW, "Noah Burney 2026", attr);
+    view_title_menu(MENU_START);
     drawn_page = PAGE_NONE;
 
-    view_prompt("PRESS SPACE TO START");
+    view_prompt(L->title_keys);
 }
 
 void view_boom(uint16_t score)
@@ -640,15 +753,15 @@ void view_boom(uint16_t score)
     scr_cls(FG_BLACK | BG_BLACK);
 
     attr = FG_WHITE | BG_BLACK;
-    view_message(14, "BOOM!", (uint8_t)(FG_RED | BG_BLACK));
+    view_message(14, L->boom, (uint8_t)(FG_RED | BG_BLACK));
 
-    label = "FINAL SCORE ";
+    label = L->final;
     labellen = str_len(label);
     col = (uint8_t)((40 - (labellen + 6)) / 2);
     scr_puts(col, 18, label, attr);
     put_udec((uint8_t)(col + labellen), 18, score, 6, attr);
 
-    view_message(22, "PRESS SPACE", attr);
+    view_message(22, L->press, attr);
 }
 
 void view_defused(void)
@@ -668,5 +781,19 @@ void view_defused(void)
        the result, so nothing has to be drawn over the rest of the screen
        and nothing has to be repainted afterwards. */
     view_light(LIGHT_GREEN);
-    scr_puts(TIMER_COL, TIMER_ROW, "SAFE", FG_RED | BG_BLACK);
+    scr_puts(TIMER_COL, TIMER_ROW, L->safe, FG_RED | BG_BLACK);
+}
+
+void view_continue(void)
+{
+    view_prompt(L->cont);
+}
+
+void view_exit(void)
+{
+    /* CAOS writes its own prompt over whatever is already on screen when
+       control returns to it, so a clean CAOS-coloured screen is what stops
+       the game's graphics showing through underneath that prompt. */
+    snd_off();
+    scr_cls(FG_WHITE | BG_BLUE);
 }

@@ -7,8 +7,16 @@
 --   300:type:HELLO     post text through the natural keyboard
 --   600:key:{ENTER}    post a coded key (MAME's {NAME} syntax)
 --   1800:quit          stop the emulation
+--   1500:reset         press RESET (RAM survives)
 --   900:peek:1BF6:16   print 16 bytes of memory to stdout
 --
+-- MAME re-runs the autoboot script after a soft reset, and the plan must not
+-- start over when it does: a plan with a reset step in it would otherwise
+-- reset for ever. The globals live in MAME's own Lua state, so the second
+-- run can see that the first one is still going.
+if bs_running then return end
+bs_running = true
+
 local plan = {}
 for step in (os.getenv("BS_PLAN") or ""):gmatch("[^,]+") do
     local frame, action = step:match("^(%d+):(.+)$")
@@ -35,6 +43,22 @@ subscription = emu.add_machine_frame_notifier(function ()
             manager.machine.video:snapshot()
         elseif action == "quit" then
             manager.machine:exit()
+        elseif action == "reset" then
+            -- The machine's RESET button, which restarts CAOS but leaves the
+            -- RAM alone -- that is what a resident menu entry has to survive.
+            -- MAME has no such button for the KC and its own soft_reset()
+            -- zeroes the RAM, so send the CPU to the ROM's reset entry and
+            -- let CAOS put the machine back in order itself.
+            manager.machine.devices[":maincpu"].state["PC"].value = 0xE000
+        elseif action:match("^pc:") then
+            -- force a jump, to enter a routine the keyboard cannot reach
+            local addr = tonumber(action:match("^pc:(%x+)$"), 16)
+            manager.machine.devices[":maincpu"].state["PC"].value = addr
+        elseif action == "regs" then
+            local st = manager.machine.devices[":maincpu"].state
+            print(string.format("REGS PC=%04X IX=%04X IY=%04X SP=%04X",
+                                st["PC"].value, st["IX"].value, st["IY"].value,
+                                st["SP"].value))
         elseif action:match("^peek:") then
             local addr, len = action:match("^peek:(%x+):(%d+)$")
             addr, len = tonumber(addr, 16), tonumber(len)
