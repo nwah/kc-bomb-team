@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Generate src/bombs.c from the packed Atari "Bomb Squad" bomb table.
+"""Generate common/bombs.c from the packed Atari "Bomb Squad" bomb table.
 
 The original game packs its 48 bombs into one string, two characters per
 wire: a letter 'a'..'f' for the wire colour and a digit '0'..'5' for the cut
 order (0 = never cut this wire). Bombs come in order: 12 with 3 wires, 12
 with 4, 12 with 5, 12 with 6.
 
-Run this script and redirect stdout to src/bombs.c:
+Run this script and redirect stdout to common/bombs.c:
 
-    python3 tools/gen_bombs.py > src/bombs.c
+    python3 tools/gen_bombs.py > common/bombs.c
 """
 
 RAW = (

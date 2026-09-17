@@ -52,7 +52,7 @@ subscription = emu.add_machine_frame_notifier(function ()
             manager.machine.devices[":maincpu"].state["PC"].value = 0xE000
         elseif action:match("^pc:") then
             -- force a jump, to enter a routine the keyboard cannot reach
-            local addr = tonumber(action:match("^pc:(%x+)$"), 16)
+            local addr = tonumber(action:match("^pc:(%S+)$"), 16)
             manager.machine.devices[":maincpu"].state["PC"].value = addr
         elseif action == "regs" then
             local st = manager.machine.devices[":maincpu"].state
@@ -94,6 +94,22 @@ subscription = emu.add_machine_frame_notifier(function ()
             end
             print(string.format("NZ %04X-%04X count=%d %s", from, to, n,
                                 table.concat(hits, " ")))
+        elseif action:match("^load:") then
+            -- Poke a raw binary into RAM: load:FILE:ADDR (addr hex, 0x ok)
+            local file, addr = action:match("^load:(.+):(%S+)$")
+            addr = tonumber(addr, 16)
+            local f = io.open(file, "rb")
+            if not f then
+                print(string.format("LOAD: cannot open %s", file))
+            else
+                local data = f:read("*a")
+                f:close()
+                local space = manager.machine.devices[":maincpu"].spaces["program"]
+                for i = 1, #data do
+                    space:write_u8(addr + i - 1, string.byte(data, i))
+                end
+                print(string.format("LOAD: %d bytes at $%04X from %s", #data, addr, file))
+            end
         else
             local kind, arg = action:match("^(%a+):(.*)$")
             if kind == "type" then
