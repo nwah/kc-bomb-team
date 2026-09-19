@@ -3,7 +3,7 @@
 # Nothing copyrighted is checked into this repo; we just repackage what is already
 # installed on this machine.
 set -e
-JAR="${JKCEMU_JAR:-$HOME/Retro/KC/jkcemu/jkcemu.jar}"
+JAR="${JKCEMU_JAR:-$(dirname "$0")/../../jkcemu/jkcemu.jar}"
 OUT="${1:-$(dirname "$0")/../.mame/roms}"
 
 [ -f "$JAR" ] || { echo "jkcemu.jar not found at $JAR (set JKCEMU_JAR)" >&2; exit 1; }
