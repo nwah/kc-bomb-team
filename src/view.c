@@ -3,6 +3,7 @@
 #include "udg.h"
 #include "bombs.h"
 #include "view.h"
+#include "version.h"
 
 /*
  * Screen and speaker only -- no game rules live here. See view.h for the
@@ -34,6 +35,9 @@ typedef struct {
     const char *boom;
     const char *final;
     const char *press;
+    const char *name;
+    const char *name_keys;
+    const char *scores;
     const char *menu[MENU_ITEMS];
 } Lang;
 
@@ -47,6 +51,7 @@ static const Lang lang_en = {
     "\x08\x09 choose   SPACE select",
     "Press any key to continue",
     "BOOM!", "FINAL SCORE ", "PRESS SPACE",
+    "ENTER YOUR NAME", "ENTER done   DEL erase", "HIGH SCORES",
     { "START", "DEUTSCH", "EXIT" }
 };
 
@@ -63,15 +68,16 @@ static const Lang lang_de = {
     "\x08\x09 Auswahl   LEER waehlen",
     "Weiter mit beliebiger Taste",
     "BUMM!", "PUNKTE GESAMT ", "LEERTASTE",
+    "DEIN NAME", "ENTER fertig   DEL loeschen", "BESTENLISTE",
     { "START", "ENGLISH", "ENDE" }
 };
 
-/* The language in force. A DATA static, deliberately NOT reset by
-   view_init(): a restart from the CAOS menu re-enters through the crt,
-   which zeroes the BSS but leaves an initialised static as it was left,
-   so a language chosen before a machine RESET is still in force when the
-   game is restarted from the CAOS menu. */
-static const Lang *L = &lang_en;
+/* The language in force, German until the player picks otherwise. A DATA
+   static, deliberately NOT reset by view_init(): a restart from the CAOS
+   menu re-enters through the crt, which zeroes the BSS but leaves an
+   initialised static as it was left, so a language chosen before a machine
+   RESET is still in force when the game is restarted from the CAOS menu. */
+static const Lang *L = &lang_de;
 
 void view_lang_toggle(void)
 {
@@ -677,6 +683,10 @@ void view_logo_light(uint8_t on)
 #define MENU_COL    8
 #define CREDIT_ROW  29
 
+/* The name prompt's field, on the row between what were the menu's second and
+   third items; its label two rows above it. */
+#define NAME_ROW    MENU_ROW(1)
+
 void view_title_menu(uint8_t selected)
 {
     /* Counted down rather than up: each row stands on its own (blanked
@@ -702,6 +712,34 @@ void view_title_menu(uint8_t selected)
     }
 }
 
+void view_name(const char *name)
+{
+    /* The prompt takes the menu's place. Every call repaints the whole of it
+       -- the rows are blanked, then the field is laid down as underscores
+       and the name over them -- so a name that has just got shorter leaves
+       nothing of the character it lost, and there is no separate erase. */
+    uint8_t attr = FG_WHITE | BG_BLACK;
+    uint8_t col = (uint8_t)(BOOK_COL0 + (BOOK_W - NAME_LEN) / 2);
+    uint8_t len = str_len(name);
+    uint8_t row;
+
+    for (row = MENU_ROW(0); row <= MENU_ROW(MENU_ITEMS - 1); row++) {
+        scr_fill(BOOK_COL0, row, BOOK_W, G_BLANK, attr);
+    }
+    book_centre(NAME_ROW - 2, L->name, attr);
+
+    /* The rest of the field is underscores, so its width shows before a
+       single letter is typed, and the cursor is a solid block on the first
+       of them. A full name has no room left for one. */
+    scr_fill(col, NAME_ROW, NAME_LEN, '_', attr);
+    scr_puts(col, NAME_ROW, name, FG_YELLOW | BG_BLACK);
+    if (len < NAME_LEN) {
+        scr_fill((uint8_t)(col + len), NAME_ROW, 1, G_SOLID, FG_YELLOW | BG_BLACK);
+    }
+
+    view_prompt(L->name_keys);
+}
+
 void view_title(void)
 {
     /* The left-hand side carries the logo instead of the book: view_frame()
@@ -712,6 +750,11 @@ void view_title(void)
     view_frame();
     view_bomb(&bombs[22]);
     view_light(LIGHT_RED);
+
+    /* The status bar has nothing to report until a game starts, so the
+       version takes its right-hand end; the score counter overwrites it. */
+    scr_puts((uint8_t)(40 - (sizeof VERSION - 1)), ROW_STATUS, VERSION,
+             FG_WHITE | BG_BLUE);
 
     logo_draw();
     view_logo_light(0);
@@ -757,16 +800,60 @@ void view_boom(uint16_t score)
     snd_off();
     scr_cls(FG_BLACK | BG_BLACK);
 
+    /* The banner and the score keep to the top of the screen: the table
+       view_scores() draws goes in underneath, on the same screen. */
     attr = FG_WHITE | BG_BLACK;
-    view_message(14, L->boom, (uint8_t)(FG_RED | BG_BLACK));
+    view_message(1, L->boom, (uint8_t)(FG_RED | BG_BLACK));
 
     label = L->final;
     labellen = str_len(label);
     col = (uint8_t)((40 - (labellen + 6)) / 2);
-    scr_puts(col, 18, label, attr);
-    put_udec((uint8_t)(col + labellen), 18, score, 6, attr);
+    scr_puts(col, 3, label, attr);
+    put_udec((uint8_t)(col + labellen), 3, score, 6, attr);
+}
 
-    view_message(22, L->press, attr);
+/* The table: its heading, ruled off, then HS_ENTRIES rows a line apart --
+   the font has no leading, so rows on adjacent lines would run together --
+   and the press line low on the screen. Each row reads "10. NAME....  000123",
+   HS_W cells wide, and is centred as a block. */
+#define HS_ROW0     9
+#define HS_W        20
+#define HS_PRESS    30
+
+void view_scores(const HiScore *table, uint8_t hilite)
+{
+    uint8_t white = FG_WHITE | BG_BLACK;
+    uint8_t col = (uint8_t)((40 - HS_W) / 2);
+    uint8_t i, row, attr;
+    const HiScore *e;
+    char pad;
+
+    view_message(HS_ROW0 - 3, L->scores, white);
+    scr_fill(col, (uint8_t)(HS_ROW0 - 2), HS_W, G_RULE, white);
+
+    for (i = 0; i < HS_ENTRIES; i++) {
+        e = &table[i];
+        row = (uint8_t)(HS_ROW0 + 2 * i);
+        attr = (i == hilite) ? (FG_YELLOW | BG_BLACK) : white;
+
+        /* The rank, right-aligned against its full stop; the screen is
+           black under it, so there is nothing to blank. */
+        if (i < 9) scr_fill((uint8_t)(col + 1), row, 1, (uint8_t)('1' + i), attr);
+        else put_udec(col, row, 10, 2, attr);
+        scr_fill((uint8_t)(col + 2), row, 1, '.', attr);
+
+        /* The name's eight cells are laid down as dots -- dashes when the
+           slot is empty -- and the name over them, so every row is the same
+           width whatever the name's length, and the empty ones cost nothing
+           extra. The score's six cells follow the same rule. */
+        pad = e->name[0] ? '.' : '-';
+        scr_fill((uint8_t)(col + 4), row, NAME_LEN, pad, attr);
+        scr_puts((uint8_t)(col + 4), row, e->name, attr);
+        if (e->name[0]) put_udec((uint8_t)(col + 14), row, e->score, 6, attr);
+        else scr_fill((uint8_t)(col + 14), row, 6, '-', attr);
+    }
+
+    view_message(HS_PRESS, L->press, white);
 }
 
 void view_defused(void)

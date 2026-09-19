@@ -7,18 +7,18 @@
  * to when the game is started from the menu. Named here rather than left to
  * the crt's default so that the two cannot drift apart.
  *
- * $1000 is also the crt's own default.  Loading lower would buy program
- * space -- the stack below it never gets more than about eighty bytes deep
- * -- but CAOS 3.1 stops drawing its menu after a RESET when the game is
- * loaded at $0800, for reasons not yet run down, so it stays here.
+ * $0200 is the first byte of user RAM, where KC 85 software conventionally
+ * loads; the CAOS menu word jumps to it, and a RESET keeps the game in the
+ * menu.  The stack lives below it and never gets more than about eighty
+ * bytes deep.
  */
-#pragma output CRT_ORG_CODE = 0x1000
+#pragma output CRT_ORG_CODE = 0x0200
 
 /*
  * The game never uses stdio -- every character on screen goes through
  * hw.asm, because the z88dk console is far too slow for it -- so the
  * streams the crt would otherwise set up are so much dead weight, and on
- * the /3 there is no room for dead weight: the binary has to end before
+ * the /3 dead weight is space the binary cannot spare: it has to end before
  * $4000.
  */
 #pragma output nostreams

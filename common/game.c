@@ -89,6 +89,85 @@ static uint8_t title_menu(void)
 
 /* ------------------------------------------------------------------- */
 
+/* The player's name, kept from game to game so that a returning player only
+   has to press ENTER, and the session's high scores, best first. Both live
+   in the BSS, so they start empty and are gone after a restart. */
+static char player_name[NAME_LEN + 1];
+static HiScore hs[HS_ENTRIES];
+
+/* Asks for the player's name before a game, into player_name. The editing
+   is done in a scratch buffer that view_name() redraws after every key, so
+   ENTER is the only thing that commits it. */
+static void ask_name(void)
+{
+    char buf[NAME_LEN + 1];
+    uint8_t len, fresh, k;
+
+    for (len = 0; player_name[len]; len++) buf[len] = player_name[len];
+    buf[len] = 0;
+    /* A remembered name starts out "fresh": the first key typed replaces it
+       wholesale rather than being tacked on the end, so a different player
+       need not backspace all eight letters away. Backspace edits it in
+       place instead, and either one ends the freshness. */
+    fresh = (uint8_t)(len != 0);
+
+    for (;;) {
+        view_name(buf);
+        while ((k = key_get()) == 0) view_wait(1);
+
+        if (k == 0x0D) {
+            while (len != 0 && buf[len - 1] == ' ') len--;
+            if (len == 0) continue;       /* a name is required */
+            for (k = 0; k < len; k++) player_name[k] = buf[k];
+            player_name[len] = 0;
+            return;
+        }
+
+        /* DEL, backspace and cursor-left, whichever the machine delivers. */
+        if (k == 0x08 || k == 0x7F || k == 0x1F) {
+            if (len != 0) buf[--len] = 0;
+            fresh = 0;
+            continue;
+        }
+
+        /* Anything else that is not printable, the cursor keys included,
+           is ignored. A space cannot begin a name, and a stray one must not
+           wipe the remembered name either. */
+        if (k < 0x20 || k > 0x7E) continue;
+        if (k == ' ' && (len == 0 || fresh)) continue;
+        if (fresh) {
+            len = 0;
+            fresh = 0;
+        }
+        if (len >= NAME_LEN) continue;
+        if (k >= 'a' && k <= 'z') k = (uint8_t)(k - 32);
+        buf[len++] = (char)k;
+        buf[len] = 0;
+    }
+}
+
+/* Enters `score` under player_name and returns the 0-based rank it took, or
+   0xFF if it did not make the table. Nothing scores nothing, and a tie goes
+   to whoever got there first, so the new score has to beat an entry outright
+   to move ahead of it. The empty slots at the end have a score of 0, so any
+   score that gets this far beats them. */
+static uint8_t hs_insert(uint16_t score)
+{
+    uint8_t rank, i;
+
+    if (score == 0) return 0xFF;
+    for (rank = 0; rank < HS_ENTRIES; rank++)
+        if (score > hs[rank].score) break;
+    if (rank == HS_ENTRIES) return 0xFF;
+
+    for (i = HS_ENTRIES - 1; i > rank; i--) hs[i] = hs[i - 1];
+    hs[rank].score = score;
+    for (i = 0; i <= NAME_LEN; i++) hs[rank].name[i] = player_name[i];
+    return rank;
+}
+
+/* ------------------------------------------------------------------- */
+
 static void pick_bomb(void)
 {
     uint8_t prev = G.bomb_num;
@@ -279,6 +358,7 @@ static void play_bomb(void)
 void game_run(void)
 {
     static uint8_t seeded = 0;
+    uint8_t rank;
 
     view_init();
     for (;;) {
@@ -306,6 +386,8 @@ void game_run(void)
             seeded = 1;
         }
 
+        ask_name();
+
         G.score = 0;
         G.defused = 0;
         G.min_bomb = 0;
@@ -316,6 +398,11 @@ void game_run(void)
         for (;;) {
             play_bomb();
             if (round_over == 1) {        /* exploded: back to the title */
+                /* boom() has put the banner and the final score up; the
+                   table goes under them, with this game's entry picked out
+                   if it made the cut. */
+                rank = hs_insert(G.score);
+                view_scores(hs, rank);
                 wait_key();
                 G.page = 0;               /* the next game starts closed */
                 break;

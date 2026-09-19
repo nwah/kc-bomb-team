@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "bombs.h"
+#include "scores.h"
 
 /*
  * Everything that touches the screen or the speaker lives here. game.c
@@ -169,9 +170,25 @@ extern void view_prompt(const char *s);
 /* Draws `s` horizontally centred on `row` in the given attribute. */
 extern void view_message(uint8_t row, const char *s, uint8_t attr);
 
+/* Name prompt, drawn over the title screen where the menu was: the label,
+   then `name` (NUL-terminated, at most NAME_LEN long, already uppercase) in
+   a NAME_LEN-wide field with a cursor after the last character, then a key
+   legend on the prompt bar. game.c calls it again after every keystroke, so
+   it must redraw the whole field each time and wipe what a longer name left
+   behind. */
+extern void view_name(const char *name);
+
 /* Boom sequence: a white flash cooling to black under a descending tone,
-   then BOOM! and the final score. Does not wait for input. */
+   then BOOM! and the final score at the top of the screen. Does not wait for
+   input and does not draw the "press a key" line -- view_scores() follows it
+   on the same screen. */
 extern void view_boom(uint16_t score);
+
+/* High-score table, drawn below the BOOM! banner: a heading, HS_ENTRIES rows
+   of rank, name and score (an empty slot shows dashes), and the "press a
+   key" line. Row `hilite` is picked out in a different colour -- it is the
+   score the player just made -- or pass 0xFF for none. */
+extern void view_scores(const HiScore *table, uint8_t hilite);
 
 /* Defuse flourish: flashes the green lamp three times with a beep, then
    leaves it lit and the readout reading SAFE. Both stay that way until the

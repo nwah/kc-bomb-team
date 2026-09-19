@@ -2,6 +2,7 @@
 #include "hw.h"
 #include "bombs.h"
 #include "view.h"
+#include "version.h"
 
 /*
  * Screen and speaker only -- no game rules live here. See view.h for the
@@ -40,6 +41,9 @@ typedef struct {
     const char *boom;
     const char *final;
     const char *press;
+    const char *name_label;
+    const char *name_keys;
+    const char *hiscores;
     const char *menu[MENU_ITEMS];
 } Lang;
 
@@ -54,6 +58,7 @@ static const Lang lang_en = {
     "A/D CHOOSE  SPACE START",
     "PRESS ANY KEY",
     "BOOM!", "FINAL SCORE ", "PRESS SPACE",
+    "ENTER YOUR NAME", "TYPE NAME  DEL ERASE  ENTER OK", "HIGH SCORES",
     { "START", "DEUTSCH", "EXIT" }
 };
 
@@ -68,14 +73,16 @@ static const Lang lang_de = {
     "A/D AUSWAHL  LEER STARTEN",
     "WEITER MIT TASTE",
     "BUMM!", "PUNKTE GESAMT ", "LEERTASTE",
+    "DEIN NAME", "NAME TIPPEN  DEL LOESCHEN  ENTER OK", "BESTENLISTE",
     { "START", "ENGLISH", "ENDE" }
 };
 
 /* A DATA static, deliberately NOT reset by view_init(): a restart from the
    monitor (MENU_EXIT -> jp start) re-enters here through the crt, which
    zeroes the BSS but leaves an initialised static as it was left, so a
-   language chosen before a RESET is still in force on the next run. */
-static const Lang *L = &lang_en;
+   language chosen before a RESET is still in force on the next run. The
+   game starts in German. */
+static const Lang *L = &lang_de;
 
 void view_lang_toggle(void) { L = (L == &lang_en) ? &lang_de : &lang_en; }
 
@@ -453,6 +460,29 @@ void view_title_menu(uint8_t selected)
     }
 }
 
+/* The name prompt takes over the menu's rows -- the manual is about to be
+   drawn over them anyway. Every call wipes and redraws the lot, so a name
+   that has just shrunk leaves nothing behind, and the field is drawn out to
+   its full width in dots so the player can see how much room there is. */
+void view_name(const char *name)
+{
+    uint8_t attr = FG_WHITE | BG_BLUE;
+    uint8_t len = str_len(name);
+    uint8_t col = (uint8_t)((SCR_COLS - NAME_LEN) / 2);
+    uint8_t row;
+
+    for (row = MENU_ROW(0); row < CREDIT_ROW; row++)
+        scr_fill(BOOK_COL0, row, BOOK_W, G_BLANK, attr);
+
+    view_message(MENU_ROW(0), L->name_label, attr);
+    scr_fill(col, MENU_ROW(1), NAME_LEN, '.', attr);
+    scr_puts(col, MENU_ROW(1), name, FG_YELLOW | BG_BLUE);
+    if (len < NAME_LEN)
+        scr_putc((uint8_t)(col + len), MENU_ROW(1), G_SOLID, FG_YELLOW | BG_BLUE);
+
+    view_prompt(L->name_keys);
+}
+
 void view_title(void)
 {
     /* The frame gives us the status bar, the bomb's case and the prompt bar;
@@ -463,6 +493,11 @@ void view_title(void)
     view_frame();
     view_bomb(&bombs[22]);
     view_light(LIGHT_RED);
+
+    /* The status bar has nothing to report until a game starts, so the
+       version takes its right-hand end; the score counter overwrites it. */
+    scr_puts((uint8_t)(40 - (sizeof VERSION - 1)), ROW_STATUS, VERSION,
+             FG_WHITE | BG_BLUE);
 
     scr_puts((uint8_t)((SCR_COLS - 9) / 2), TITLE_ROW, "BOMBSQUAD", attr);
     view_logo_light(0);
@@ -505,15 +540,54 @@ void view_boom(uint16_t score)
     snd_off();
     scr_cls(ATTR(FG_BLACK, BG_BLACK));
 
-    view_message(14, L->boom, ATTR(FG_RED, BG_BLACK));
+    view_message(1, L->boom, ATTR(FG_RED, BG_BLACK));
 
     label = L->final;
     labellen = str_len(label);
     col = (uint8_t)((SCR_COLS - (labellen + 6)) / 2);
-    scr_puts(col, 18, label, attr);
-    put_udec((uint8_t)(col + labellen), 18, score, 6, attr);
+    scr_puts(col, 3, label, attr);
+    put_udec((uint8_t)(col + labellen), 3, score, 6, attr);
+}
 
-    view_message(22, L->press, attr);
+/* The table, under the banner view_boom() left at the top of the black
+   screen. Each row reads " 1. NAME....  000123" -- rank, name in a
+   NAME_LEN-wide field, score -- and the block as a whole is centred. */
+#define HS_COL0     10
+#define HS_ROW0     7
+
+void view_scores(const HiScore *table, uint8_t hilite)
+{
+    uint8_t i, row, attr;
+    char rank[4];
+    const HiScore *e;
+
+    view_message(5, L->hiscores, FG_WHITE | BG_BLACK);
+
+    for (i = 0; i < HS_ENTRIES; i++) {
+        e = &table[i];
+        row = (uint8_t)(HS_ROW0 + i);
+        attr = (uint8_t)((i == hilite ? FG_YELLOW : FG_WHITE) | BG_BLACK);
+        /* 1..9 right-aligned, then 10. */
+        rank[0] = ' ';
+        rank[1] = (char)('1' + i);
+        if (i == 9) {
+            rank[0] = '1';
+            rank[1] = '0';
+        }
+        rank[2] = '.';
+        rank[3] = 0;
+        scr_puts(HS_COL0, row, rank, attr);
+
+        if (e->name[0]) {
+            put_field((uint8_t)(HS_COL0 + 4), row, e->name, NAME_LEN, attr);
+            put_udec((uint8_t)(HS_COL0 + 14), row, e->score, 6, attr);
+        } else {
+            scr_puts((uint8_t)(HS_COL0 + 4), row, "--------", attr);
+            scr_puts((uint8_t)(HS_COL0 + 14), row, "------", attr);
+        }
+    }
+
+    view_message(22, L->press, FG_WHITE | BG_BLACK);
 }
 
 void view_defused(void)

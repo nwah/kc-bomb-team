@@ -9,6 +9,7 @@
 --   1800:quit          stop the emulation
 --   1500:reset         press RESET (RAM survives)
 --   900:peek:1BF6:16   print 16 bytes of memory to stdout
+--   900:poke:357E:7800 write bytes to memory: $78 at $357E, $00 at $357F
 --
 -- MAME re-runs the autoboot script after a soft reset, and the plan must not
 -- start over when it does: a plan with a reset step in it would otherwise
@@ -68,6 +69,16 @@ subscription = emu.add_machine_frame_notifier(function ()
                 out[#out + 1] = string.format("%02X", space:read_u8(addr + i))
             end
             print(string.format("PEEK %04X %s", addr, table.concat(out, " ")))
+        elseif action:match("^poke:") then
+            -- write bytes into memory: poke:<hexaddr>:<hexbytes>, e.g.
+            -- poke:357E:7800 puts $78 at $357E and $00 at $357F
+            local addr, bytes = action:match("^poke:(%x+):(%x+)$")
+            addr = tonumber(addr, 16)
+            local space = manager.machine.devices[":maincpu"].spaces["program"]
+            for i = 1, #bytes - 1, 2 do
+                space:write_u8(addr + (i - 1) // 2, tonumber(bytes:sub(i, i + 1), 16))
+            end
+            print(string.format("POKE %04X %s", addr, bytes))
         elseif action == "listports" then
             for tag, port in pairs(manager.machine.ioport.ports) do
                 for name, field in pairs(port.fields) do
