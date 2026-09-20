@@ -1,6 +1,6 @@
-# Bomb Team — KC 85/3, KC 85/4 and the Z9001 (KC 85/1)
+# B💣MB TEAM
 
-A port of my Atari BASIC 10Liner entry, *Bomb Squad*, to the KC 85.
+A port of my Atari BASIC 10Liner entry, [*Bomb Squad*](https://bunsen.itch.io/bomb-squad-atari-8-bit-by-noah-burney), to the KC 85.
 
 Beep... beep... beep.  Consult the Bomb Defusal Manual, find the page that
 matches the bomb on the right of the screen, and cut its wires in the right
