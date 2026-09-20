@@ -17,45 +17,93 @@
  * directly, so every G_* symbol below is a plain character code.
  */
 
-/* Rows. Row 0 is the blue status bar and row 23 is the blue prompt bar;
-   row 1 is a black margin. Rows 2..14 hold the bomb (a lamp and the timer
-   up top, the wires in the box beneath, scissors at the left), rows 15..21
-   hold the manual, and row 22 is the credit / page-number line. */
+/* Rows. Row 0 is the status bar, white on black, and row 23 the prompt bar,
+   white on blue, on every screen; on the title screen the status bar
+   carries the credit at its left end and the version at its right. The
+   field between them is black. Row 1 is a margin, rows 2..14 hold the bomb
+   (row 14 only its bottom edge) and rows 15..22 hold the manual -- or, on
+   the title screen, the logo and the menu. */
 #define ROW_STATUS      0
 #define ROW_PROMPT      23
-#define CREDIT_ROW      22
 
-/* Bomb. The lamp and the countdown readout sit in the top corner of the
-   box; wire i runs across the box on WIRE_ROW(i), and a cut severs the band
-   at the scissors, which sit in the middle of it. */
-#define LIGHT_ROW       2
-#define LIGHT_COL       37
-#define TIMER_ROW       2
-#define TIMER_COL       32
-#define TIMER_W         4          /* wide enough for "SAFE" */
+/* Bomb. Two sticks of dynamite lie across the whole width of the screen, one
+   on top of the other, and a narrow box (cols 6..33, rows 2..13) is strapped
+   over their middles, its black inside hiding the sticks between its sides
+   and leaving their ends poking out either side. A thin line separates the
+   sticks, on a row of its own, and a half block of black beside the box's
+   left side is its shadow. The box looks one column and one row deep: its
+   back face's right and bottom edges show at col 34 and on row 14. The
+   box's top and bottom rows stay black, so the sticks stand clear of its
+   outline. In the last column a white lead ties the middles of the two
+   sticks together. */
+#define STICK_ROW0      4               /* the top stick's first row */
+#define STICK_H         4               /* rows to a stick */
+#define STICK_SEAM      (STICK_ROW0 + STICK_H)  /* the line between them */
+#define STICK_ROWS      (2 * STICK_H + 1)       /* rows 3..11 in all */
 
-#define WIRE_ROW(i)     (4 + 2 * (i))   /* 4,6,8,10,12,14 */
-#define WIRE_COL0       6
-#define WIRE_W          31        /* cols 6..36 */
-#define SCISSORS_COL    31        /* the scissors sit in the band */
+/* The lead runs down column LEAD_COL from LEAD_REACH rows above the seam to
+   as many below it, and turns in at each end for LEAD_LEN columns. */
+#define LEAD_COL        39
+#define LEAD_REACH      2
+#define LEAD_LEN        2
+
+/* Inside the box the wires run across the left part, and the right part is a
+   panel holding the lamp, the countdown readout and a dummy keypad. Wire i
+   runs on WIRE_ROW(i), and a cut severs the band at the scissors, which sit
+   in the middle of it. */
+#define WIRE_ROW(i)     (3 + 2 * (i))   /* 3,5,7,9,11,13 */
+#define WIRE_COL0       7
+#define WIRE_W          15        /* cols 8..21 */
+#define SCISSORS_COL    14        /* the scissors sit in the band */
+#define SCISSORS_W      2         /* ">B" open, "=B" closed */
 #define CUT_COL_L       (SCISSORS_COL - 1)
-#define CUT_COL_R       (SCISSORS_COL + 1)
+#define CUT_COL_R       (SCISSORS_COL - 1 + SCISSORS_W)
 
 #define WIRE_BOX_LEFT   5
-#define WIRE_BOX_RIGHT  38
-#define WIRE_BOX_TOP    3
-#define WIRE_BOX_BOTTOM 14
+#define WIRE_BOX_RIGHT  32
+#define WIRE_BOX_TOP    2
+#define WIRE_BOX_BOTTOM 13
 
-/* The title text shares row 2 with the lamp/timer -- it is only drawn on the
-   title screen and is wiped by view_book_rise() when a game starts. */
-#define TITLE_ROW       2
+/* The wire compartment is walled off from the panel by a white line down
+   WALL_COL, so it is a box of its own. The panel is cols 25..31 -- the
+   readout and lamp share the top wire's row and the keypad fills the rows
+   below them. */
+#define WALL_COL        24
+#define LIGHT_ROW       3
+#define LIGHT_COL       31
+#define TIMER_ROW       3
+#define TIMER_COL       25
+#define TIMER_W         4          /* wide enough for "SAFE" */
 
-/* The manual: a full-width panel, white on black, below the bomb. Row 15 is
-   its rule, row 16 its heading, and rows 17..22 the six wire entries -- one
-   per cell row, enough for the widest bomb. */
+/* A dummy 3x4 keypad, drawn as a table of square buttons with the chargen's
+   box-drawing pieces, the buttons sharing their borders and the bottom-right
+   two merged into one tall ENTER button. The table itself is the art in
+   view.c; it is 7 cols by 9 rows, so this puts it on cols 25..31 and rows
+   4..12. Purely decoration -- nothing reads it. */
+#define KEYPAD_COL      25
+#define KEYPAD_ROW      4
+
+/* The title screen's lower half: the four-row block-graphics logo sits on
+   rows 16..19 under the box, and the menu is a single line on row 21
+   with a blank row either side. The name prompt replaces the menu on that
+   same line: its label, then the field to the right of it. All of it is
+   wiped along with the rest of the panel by view_book_rise() when a game
+   starts. */
+#define TITLE_ROW       16
+#define NAME_ROW        21
+#define MENU_ROW        21
+
+/* The manual: a full-width panel, black on white, below the bomb. Row 15
+   holds only the page number, row 16 the heading, and rows 17..22 the six
+   wire entries -- one per cell row, enough for the widest bomb. The last
+   BOOK_EDGE_W columns are the edge of the pages beneath, white with a "|"
+   in each and a solid diagonal wedge at the top, each column starting a
+   row lower than the one before it, on every page; the cover is red over
+   all the rest, and the page number sits just inside the edge. */
 #define BOOK_COL0       0
 #define BOOK_W          40
-#define BOOK_ROW0       15      /* rule / cover top */
+#define BOOK_EDGE_W     2
+#define BOOK_ROW0       15      /* page number / cover top */
 #define BOOK_ROW1       22
 #define ENTRY_ROW(i)    (17 + (i))   /* 17..22 */
 #define ENTRY_COL_ORDER 1
@@ -90,9 +138,9 @@ extern void view_wait(uint8_t ticks);
 /* One-time setup: clears the screen. Called after scr_setup(). */
 extern void view_init(void);
 
-/* Title screen menu: three items drawn one to a row, the chosen one
-   picked out in yellow. MENU_ITEMS sizes the language table's menu[] and
-   is used by game.c to track the selection. */
+/* Title screen menu: three items side by side on MENU_ROW, the chosen one
+   picked out in yellow and bracketed by "<" and ">". MENU_ITEMS sizes the
+   language table's menu[] and is used by game.c to track the selection. */
 #define MENU_START  0
 #define MENU_LANG   1
 #define MENU_EXIT   2

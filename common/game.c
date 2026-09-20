@@ -66,8 +66,12 @@ static uint8_t title_menu(void)
             }
         }
 
+        /* Up/down and left/right both move the selection: a menu drawn as a
+           column answers to W/S, one drawn as a row to A/D and the cursor
+           keys, and the shared code need not know which it has. */
         switch (k) {
             case 0x0B: case 'w': case 'W':
+            case 0x08: case 'a': case 'A': case ',':
                 /* sel is unsigned, so decrementing past 0 wraps to 0xFF
                    rather than -1, which is what this is actually testing
                    for. */
@@ -77,6 +81,7 @@ static uint8_t title_menu(void)
                 break;
 
             case 0x0A: case 's': case 'S':
+            case 0x09: case 'd': case 'D': case '.':
                 if (++sel >= MENU_ITEMS) sel = 0;
                 view_title_menu(sel);
                 break;
