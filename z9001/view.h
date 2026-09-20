@@ -93,13 +93,15 @@
 #define NAME_ROW        21
 #define MENU_ROW        21
 
-/* The manual: a full-width panel, black on white, below the bomb. Row 15
-   holds only the page number, row 16 the heading, and rows 17..22 the six
-   wire entries -- one per cell row, enough for the widest bomb. The last
+/* The manual: a full-width panel, black on white, below the bomb. A page has
+   black borders along its top (row 15) and right (the column before the
+   edge), drawn with the thin edge-aligned outline pieces. Row 16 holds the heading and, at
+   the right, the page number, and rows 17..22 the six wire entries -- one
+   per cell row, enough for the widest bomb. The last
    BOOK_EDGE_W columns are the edge of the pages beneath, white with a "|"
    in each and a solid diagonal wedge at the top, each column starting a
    row lower than the one before it, on every page; the cover is red over
-   all the rest, and the page number sits just inside the edge. */
+   all the rest. */
 #define BOOK_COL0       0
 #define BOOK_W          40
 #define BOOK_EDGE_W     2
@@ -110,7 +112,7 @@
 #define ORDER_WIDTH      3
 #define ENTRY_COL_SWATCH 4
 #define ENTRY_COL_NAME   7
-#define ENTRY_NAME_W     13
+#define ENTRY_NAME_W     15     /* "GRUEN GESTREIFT", the longest name */
 
 /* Two lamps, one state: whichever the state names is lit and the other is
    painted black, which is what the box behind it already is. */

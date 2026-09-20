@@ -33,6 +33,7 @@ typedef struct {
     const char *col_order;
     const char *col_wire;
     const char *wires;
+    const char *bomb;
     const char *colour[6];
     const char *order[6];
     const char *legend;
@@ -50,7 +51,7 @@ typedef struct {
 static const Lang lang_en = {
     "SCORE ", "DEFUSED ", "SAFE", "BOMB DEFUSAL MANUAL",
     { "BOMB", "DEFUSAL", "MANUAL" }, "48 PAGES",
-    "CUT", "WIRE", " wires",
+    "CUT", "WIRE", " WIRES", "BOMB ",
     { "RED", "RED STRIPED", "BLUE", "BLUE STRIPED",
       "GREEN", "GREEN STRIPED" },
     { "no", "1st", "2nd", "3rd", "4th", "5th" },
@@ -65,9 +66,9 @@ static const Lang lang_en = {
 static const Lang lang_de = {
     "PUNKTE ", "GESCHAFFT ", "FREI", "BOMBEN-HANDBUCH",
     { "DAS", "BOMBEN", "HANDBOOK" }, "48 SEITEN",
-    "SCHNEIDE", "DRAHT", " Draehte",
-    { "ROT", "ROT GESTR.", "BLAU", "BLAU GESTR.",
-      "GRUEN", "GRUEN GESTR." },
+    "SCHNEIDE", "DRAHT", " DRAEHTE", "BOMBE ",
+    { "ROT", "ROT GESTREIFT", "BLAU", "BLAU GESTREIFT",
+      "GRUEN", "GRUEN GESTREIFT" },
     { "nie", "1.", "2.", "3.", "4.", "5." },
     "A/D SEITE  W/S DRAHT  LEER SCHNEIDEN",
     "A/D AUSWAHL  LEER STARTEN",
@@ -214,6 +215,23 @@ static void manual_paint(uint8_t attr)
     for (row = BOOK_ROW0; row <= BOOK_ROW1; row++)
         scr_fill(BOOK_COL0, row, (uint8_t)(BOOK_W - BOOK_EDGE_W), G_BLANK,
                  attr);
+}
+
+/* A page's black borders, top and right, drawn with the thin outline pieces
+   that run along the very edge of their cells, the same ones that outline the
+   bomb: a line along the top row, turning down in a corner at the last column
+   before the edge of the pages and running to the bottom of the panel. The
+   cover has none. */
+static void manual_border(void)
+{
+    uint8_t attr = FG_BLACK | BG_WHITE;
+    uint8_t right = (uint8_t)(BOOK_W - BOOK_EDGE_W - 1);
+    uint8_t row;
+
+    scr_fill(BOOK_COL0, BOOK_ROW0, right, G_EDGE_T, attr);
+    scr_putc(right, BOOK_ROW0, G_CORN_TR, attr);
+    for (row = (uint8_t)(BOOK_ROW0 + 1); row <= BOOK_ROW1; row++)
+        scr_putc(right, row, G_EDGE_R, attr);
 }
 
 /* The edge of the pages beneath the one showing: the last BOOK_EDGE_W columns
@@ -563,7 +581,7 @@ void view_book_rise(void)
 void view_manual(uint8_t page)
 {
     uint8_t attr = FG_BLACK | BG_WHITE;
-    uint8_t row, i, n, full, hr;
+    uint8_t row, i, n, full, hr, col;
     const Bomb *b;
     char nb[2];
 
@@ -596,7 +614,9 @@ void view_manual(uint8_t page)
         return;
     }
 
-    /* The page number, in the top corner just inside the edge. */
+    manual_border();
+
+    /* The page number, in the top corner just inside the border. */
     put_udec((uint8_t)(BOOK_W - BOOK_EDGE_W - 3), BOOK_ROW0 + 1, page, 2, attr);
 
     b = &bombs[page - 1];
@@ -604,13 +624,19 @@ void view_manual(uint8_t page)
     nb[0] = (char)('0' + n);
     nb[1] = 0;
 
-    /* Heading: "Bomb NN (N wires)". */
+    /* Heading: "BOMB NN(N WIRES)", or "BOMBE NN(N DRAEHTE)", the words
+       coming from the language table so the labels' lengths set the layout. */
     hr = (uint8_t)(BOOK_ROW0 + 1);
-    scr_puts(1, hr, "BOMB ", attr);
-    put_udec(6, hr, page, 2, attr);
-    scr_puts(8, hr, "(", attr);
-    scr_puts(9, hr, nb, attr);
-    scr_puts(10, hr, " WIRES)", attr);
+    col = 1;
+    scr_puts(col, hr, L->bomb, attr);
+    col = (uint8_t)(col + str_len(L->bomb));
+    put_udec(col, hr, page, 2, attr);
+    col = (uint8_t)(col + 2);
+    scr_puts(col++, hr, "(", attr);
+    scr_puts(col++, hr, nb, attr);
+    scr_puts(col, hr, L->wires, attr);
+    col = (uint8_t)(col + str_len(L->wires));
+    scr_puts(col, hr, ")", attr);
 
     for (i = 0; i < n; i++) {
         uint8_t c = b->colour[i];
