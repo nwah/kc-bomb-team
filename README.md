@@ -7,7 +7,7 @@ matches the bomb on the right of the screen, and cut its wires in the right
 order before the countdown runs out.
 
 ## Download
-See [Releases](https://github.com/nwah/kc-bomb-team/)
+See [Releases](https://github.com/nwah/kc-bomb-team/releases)
 
 ## KC 85/3 and /4
 ![KC 85/4 gameplay gif](doc/bombteam-kc.gif)
