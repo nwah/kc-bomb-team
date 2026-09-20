@@ -6,6 +6,12 @@ Beep... beep... beep.  Consult the Bomb Defusal Manual, find the page that
 matches the bomb on the right of the screen, and cut its wires in the right
 order before the countdown runs out.
 
+## KC 85/3 and /4
+![KC 85/4 gameplay gif](doc/bombteam-kc.gif)
+
+## Z 9001 (color required)
+![Z9001 gameplay gif](doc/bombteam-z9.gif)
+
 ## Controls
 
 | Action             | Keys                          |
